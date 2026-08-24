@@ -45,3 +45,13 @@ useInfiniteQuery({
 
 ## Known tsconfig Requirement
 `apps/web/tsconfig.json` must have `"declaration": false` — pnpm hoisted @types/react path causes TS2742 otherwise.
+
+## Next.js 15+ Breaking Change — Async Params
+`params` in Server Component pages is now a `Promise`. Always await it:
+```tsx
+// app/post/[id]/page.tsx
+interface PageProps { params: Promise<{ id: string }> }
+export default async function Page({ params }: PageProps) {
+  const { id } = await params;
+}
+```

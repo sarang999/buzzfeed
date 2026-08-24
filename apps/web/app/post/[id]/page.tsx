@@ -5,13 +5,16 @@ import { FeedSkeleton } from '@/components/feed/FeedSkeleton';
 import { notFound } from 'next/navigation';
 
 interface PageProps {
-  params: { id: string };
+  // Next.js 15+: params is a Promise
+  params: Promise<{ id: string }>;
 }
 
 export default async function PostDetailPage({ params }: PageProps) {
+  const { id } = await params;
+
   let post;
   try {
-    post = await getPostById(params.id);
+    post = await getPostById(id);
   } catch {
     notFound();
   }

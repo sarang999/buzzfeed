@@ -60,13 +60,11 @@ export function PostCard({ post, index = 0 }: PostCardProps) {
               fill
               className="object-cover"
               placeholder={post.blurhash ? 'blur' : 'empty'}
-              blurDataURL={
-                post.blurhash
-                  ? `data:image/svg+xml;base64,${Buffer.from(
-                      `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><filter id="b"><feGaussianBlur stdDeviation="20"/></filter><image width="100%" height="100%" style="filter:url(#b)"/></svg>`,
-                    ).toString('base64')}`
-                  : undefined
-              }
+              {...(post.blurhash && {
+                blurDataURL: `data:image/svg+xml;base64,${Buffer.from(
+                  `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><filter id="b"><feGaussianBlur stdDeviation="20"/></filter><image width="100%" height="100%" style="filter:url(#b)"/></svg>`,
+                ).toString('base64')}`,
+              })}
               sizes="(max-width: 672px) 100vw, 672px"
             />
           </div>
