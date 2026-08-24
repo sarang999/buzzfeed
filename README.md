@@ -190,26 +190,19 @@ Ordered by impact. Each item is self-contained and can be picked up independentl
 
 - [ ] **Real API integration** — Replace `packages/api/src/mock/handlers.ts` bodies with `fetch()` calls to a real backend. Types, pagination, and error handling stay identical.
 - [ ] **Auth flow** — Add login/register screens. Mobile: JWT in `expo-secure-store`. Web: httpOnly cookie. Gate feed mutations on auth state.
-- [ ] **MMKV persistence on mobile** — Swap the Zustand persist storage from in-memory to `react-native-mmkv` for bookmarks that survive app restart. Already wired; just inject the storage adapter.
-- [ ] **PostCard mobile — complete component** — The `PostCard.tsx` stub in `apps/mobile/components/PostCard/` needs its full implementation (image, author row, caption, action row). Currently handled in the detail screen but the feed card is minimal.
+- [ ] **Image upload / create post** — `expo-image-picker` → upload to S3/Cloudflare → POST to API.
 
 ### Medium Priority
 
-- [ ] **Unit tests** — `packages/utils` functions are pure and trivially testable with Jest. `packages/store` reducers can be tested without a render. Start here.
 - [ ] **Component tests** — `LikeButton` (web + mobile) with `@testing-library/react` and `@testing-library/react-native`. Mock `useMutation`, assert Zustand state updates.
 - [ ] **Detox E2E** — Critical path: load feed → like a post → navigate to detail → verify like count → navigate back → verify count consistent.
-- [ ] **Web: Framer Motion entry animations** — Subtle `fadeInUp` on PostCard mount. Already using Tailwind; no layout engine conflict.
-- [ ] **Web: Virtualized list** — `react-window` or TanStack Virtual for web feed (currently a DOM list). Not needed until 100+ posts per session but good for parity with mobile.
-- [ ] **Image upload / create post flow** — New screen with `expo-image-picker`, upload to S3/Cloudflare, POST to API.
+- [ ] **Web: Virtualized list** — TanStack Virtual for web feed. Not needed until 100+ posts per session but good for parity with mobile.
 
 ### Low Priority / Polish
 
-- [ ] **Dark mode** — Tailwind `dark:` classes (web), `Appearance.getColorScheme()` (mobile). Design tokens in `packages/utils` already support extension.
-- [ ] **CI/CD** — GitHub Actions: `pnpm install` → `tsc --noEmit` all packages → `next build` → EAS Build (mobile). Vercel auto-deploy for web.
 - [ ] **Sentry** — `@sentry/nextjs` (web) + `@sentry/react-native` (mobile). Add to root providers.
 - [ ] **Analytics** — PostHog or Amplitude. Instrument: feed scroll depth, like, save, share, post detail open.
-- [ ] **Offline banner** — `@react-native-community/netinfo` on mobile. Already referenced in architecture plan; component scaffolded but not wired.
-- [ ] **Web PWA manifest** — Add `manifest.json` for installable PWA. Pairs well with Web Share API already implemented.
+- [ ] **EAS Build CI** — Add EAS Build step to GitHub Actions for iOS/Android artifact on every release tag.
 
 ---
 
