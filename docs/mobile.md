@@ -1,4 +1,4 @@
-# BuzzFeed Travel — Mobile Patterns
+# BuzzFeed Travel — Mobile Patterns (Expo SDK 57 · RN 0.87)
 
 ## FlashList (not FlatList)
 ```tsx

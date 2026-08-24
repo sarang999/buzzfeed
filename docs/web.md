@@ -1,4 +1,4 @@
-# BuzzFeed Travel — Web Patterns
+# BuzzFeed Travel — Web Patterns (Next.js 16 · React 19)
 
 ## Server vs Client Component Rules
 - `app/page.tsx` — Server Component. Calls getPosts() directly. Passes `initialData` to FeedClient.

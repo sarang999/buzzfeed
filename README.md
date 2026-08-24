@@ -1,8 +1,8 @@
 # BuzzFeed Travel — Monorepo
 
-A high-performance travel social feed. **Mobile** (React Native / Expo Router) and **Web** (Next.js 14 App Router) share typed API contracts, Zustand interaction state, and utilities through three internal packages in a Turborepo + pnpm workspace.
+A high-performance travel social feed. **Mobile** (React Native / Expo Router) and **Web** (Next.js 16 App Router) share typed API contracts, Zustand interaction state, and utilities through three internal packages in a Turborepo + pnpm workspace.
 
-Built as a senior engineering take-home demonstrating: production-grade monorepo architecture, FlashList-powered feed performance, cursor pagination, optimistic UI with rollback, SSR initial data, and Reanimated UI-thread animations.
+**Stack**: Next.js 16.3 · React 19 · Expo SDK 57 · React Native 0.87 · TanStack Query 5 · Zustand 4 · Reanimated 4 · FlashList 2
 
 > **Engineering decisions and trade-offs → [ARCHITECTURE.md](./ARCHITECTURE.md)**
 
@@ -45,8 +45,8 @@ npx expo start
 ```
 buzzfeed/
 ├── apps/
-│   ├── mobile/          # Expo SDK 51, Expo Router v3 (iOS + Android)
-│   └── web/             # Next.js 14 App Router
+│   ├── mobile/          # Expo SDK 57, Expo Router v57, RN 0.87 (iOS + Android)
+│   └── web/             # Next.js 16 App Router, React 19
 ├── packages/
 │   ├── api/             # TypeScript types + async mock data layer
 │   ├── store/           # Zustand interaction store (framework-agnostic)
@@ -94,7 +94,7 @@ Full rationale in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary table:
 | 4 | **Shared Zustand store** | `packages/store` (zero framework imports) | Per-app store duplication | Bug fix in `optimisticLike` propagates to both mobile and web simultaneously. Same optimistic pattern everywhere | Store persistence backend differs per platform (localStorage web / AsyncStorage mobile) — requires injection |
 | 5 | **API contract location** | `packages/api` shared types + mock handlers | Types duplicated per app | Single TypeScript source of truth — type drift between mobile and web is a build error, not a runtime surprise | Swapping mock → real API requires editing one file; function signatures are identical |
 | 6 | **Mobile navigation** | Expo Router v3 (file-based) | React Navigation configured manually | Same mental model as Next.js App Router — `_layout.tsx`, `[id].tsx`. Deep linking zero-config. Type-safe routes via `typedRoutes: true` | More opinionated about file structure; some advanced RN Navigation patterns require workarounds |
-| 7 | **Web initial data** | Server Component calls `getPosts()` directly | Client-side `useQuery` with spinner | Feed HTML arrives pre-filled — zero loading flash on first paint; crawlable by search engines; React 18 Suspense streams slow data | If server-side mock/API is slow, server response is slow; mitigated with `revalidate` in production |
+| 7 | **Web initial data** | Server Component calls `getPosts()` directly | Client-side `useQuery` with spinner | Feed HTML arrives pre-filled — zero loading flash on first paint; crawlable by search engines; React 19 Suspense streams slow data | If server-side mock/API is slow, server response is slow; mitigated with `revalidate` in production |
 | 8 | **Mobile skeleton loader** | Reanimated `withRepeat` + `interpolateColor` (hand-written) | `react-native-skeleton-placeholder` library | Shimmer runs on **UI thread** via Reanimated worklets — stays smooth when JS thread is busy loading first page | ~40 more lines of code vs an npm install |
 | 9 | **Optimistic update rollback** | Zustand `onMutate` → `onError` rollback + toast | Disabled button during request | UI responds in <1 ms. 5% random mock errors ensure rollback path is exercised every dev session | Slightly more complex mutation hook; worth it for the UX |
 | 10 | **Mock API approach** | Direct async function calls with simulated latency | HTTP mock server (json-server / MSW) | Mobile app works without a running server — reviewer runs `npx expo start` standalone | No real HTTP exercised in dev; swap is one file change (`handlers.ts` functions become `fetch()` calls) |

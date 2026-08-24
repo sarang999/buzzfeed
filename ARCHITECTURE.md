@@ -12,7 +12,7 @@ This document explains the key engineering choices made in this codebase and the
 
 **Trade-off**: FlashList requires `estimatedItemSize` to be set correctly. If this value is significantly wrong, it causes layout jumps. We mitigate this with `overrideItemLayout` which specifies per-item sizes based on post type (with image: 380dp, text-only: 200dp). The discipline required is worth it for 60fps scrolling.
 
-**Alternative considered**: `@shopify/flash-list` v2 or Recyclerlistview. FlashList is actively maintained by Shopify and has the cleanest API.
+**Alternative considered**: Recyclerlistview. We chose FlashList 2 (actively maintained by Shopify, cleanest API, ships with Expo SDK 57).
 
 ---
 
@@ -67,7 +67,7 @@ The mock handlers simulate realistic network conditions (300–800ms latency, 5%
 
 **Decision**: Use Expo Router (file-based routing) rather than configuring React Navigation directly.
 
-**Why**: Expo Router v3 provides the same mental model as Next.js App Router — routes are files, layouts are `_layout.tsx`, dynamic segments are `[id].tsx`. This means developers familiar with Next.js can navigate the mobile app structure immediately. It also provides type-safe routes (via `typedRoutes: true` in app.json) and deep linking with zero additional configuration.
+**Why**: Expo Router v57 provides the same mental model as Next.js App Router — routes are files, layouts are `_layout.tsx`, dynamic segments are `[id].tsx`. This means developers familiar with Next.js can navigate the mobile app structure immediately. It also provides type-safe routes (via `typedRoutes: true` in app.json) and deep linking with zero additional configuration.
 
 **Trade-off**: Expo Router is more opinionated about file structure and requires the Expo SDK. It doesn't support every advanced React Navigation pattern out of the box. For a standard tab + stack navigation pattern like this app, the trade-off is clearly positive.
 
@@ -77,7 +77,9 @@ The mock handlers simulate realistic network conditions (300–800ms latency, 5%
 
 **Decision**: `app/page.tsx` is a Server Component that calls `getPosts()` directly and passes the result as `initialData` to the client feed.
 
-**Why**: On first load, users see the feed content in the HTML response — no client-side loading spinner. The page is crawlable by search engines. React 18 Suspense streaming means slow data doesn't block the entire page.
+**Why**: On first load, users see the feed content in the HTML response — no client-side loading spinner. The page is crawlable by search engines. React 19 Suspense streaming means slow data doesn't block the entire page.
+
+**Note (Next.js 15+ breaking change)**: `params` in Server Component pages is now a `Promise`. `app/post/[id]/page.tsx` awaits params before reading `.id`.
 
 **Trade-off**: The initial data is fetched at render time. If the mock (or real API) is slow, the server response is slow. We mitigate this with `next: { revalidate: 60 }` in production, so frequently-visited pages serve cached HTML.
 
@@ -85,7 +87,7 @@ The mock handlers simulate realistic network conditions (300–800ms latency, 5%
 
 ## 8. Reanimated Shimmer Skeleton — No Library
 
-**Decision**: The mobile skeleton loader is implemented with Reanimated `useSharedValue` + `withRepeat(withTiming(...))` + `interpolateColor` — no skeleton library installed.
+**Decision**: The mobile skeleton loader is implemented with Reanimated 4 `useSharedValue` + `withRepeat(withTiming(...))` + `interpolateColor` — no skeleton library installed.
 
 **Why**: This demonstrates deep Reanimated knowledge, keeps the bundle smaller, and the shimmer runs on the **UI thread** via Reanimated's worklet system. A JS-thread-based shimmer would stutter if the JS thread is busy loading the first page of data. Ours doesn't.
 
