@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
@@ -15,6 +15,10 @@ export const metadata: Metadata = {
     type: 'website',
   },
   manifest: '/manifest.json',
+};
+
+// themeColor moved to viewport export per Next.js 15+ requirement
+export const viewport: Viewport = {
   themeColor: '#f97316',
 };
 
@@ -24,7 +28,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} dark:text-gray-100`}>
         <Providers>
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            {/* Header is a client component so it can read auth state */}
             <HeaderNav />
             <main className="max-w-2xl mx-auto px-4 py-6">{children}</main>
           </div>

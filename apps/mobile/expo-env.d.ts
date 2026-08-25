@@ -1,6 +1,3 @@
 /// <reference types="expo/types" />
 
-// Expo Router TypeScript declarations
-declare module 'expo-router' {
-  export * from 'expo-router/build/exports';
-}
+// NOTE: This file should not be edited and should be in your git ignore

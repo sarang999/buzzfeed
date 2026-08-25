@@ -1,0 +1,31 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  ext {
+    // Pin Kotlin to the version used by expo-module-gradle-plugin (2.1.20).
+    // Gradle 9.x bundles Kotlin 2.3.0 which breaks expo-module-gradle-plugin's
+    // build scripts (KotlinVersion.KOTLIN_1_8 removed, stdlib metadata incompatible).
+    // This override ensures all Kotlin compilation uses a consistent version.
+    kotlinVersion = "2.1.20"
+  }
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
