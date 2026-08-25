@@ -17,6 +17,7 @@
 }
 
 @layer utilities {
+  /* Shimmer skeleton animation — must declare the keyframe globally */
   .shimmer {
     background: linear-gradient(
       90deg,
@@ -25,6 +26,15 @@
       #f0f0f0 75%
     );
     background-size: 1000px 100%;
-    animation: shimmer 1.6s infinite linear;
+    animation: shimmer-slide 1.6s infinite linear;
+  }
+}
+
+@keyframes shimmer-slide {
+  from {
+    background-position: -1000px 0;
+  }
+  to {
+    background-position: 1000px 0;
   }
 }

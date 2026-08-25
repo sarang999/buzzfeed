@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { likePost } from '@buzzfeed/api';
 import { usePostInteractionStore } from '@buzzfeed/store';
+import { useAuth } from '@/app/auth-context';
 import { formatCount } from '@buzzfeed/utils';
 
 interface LikeButtonProps {
@@ -12,6 +14,8 @@ interface LikeButtonProps {
 
 export function LikeButton({ postId }: LikeButtonProps) {
   const [toast, setToast] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
 
   const interaction = usePostInteractionStore((s) => s.interactions[postId]);
   const optimisticLike = usePostInteractionStore((s) => s.optimisticLike);
@@ -23,12 +27,8 @@ export function LikeButton({ postId }: LikeButtonProps) {
 
   const { mutate } = useMutation({
     mutationFn: () => likePost(postId, !liked),
-    onMutate: () => {
-      optimisticLike(postId);
-    },
-    onSuccess: (data) => {
-      confirmLike(postId, data.likeCount);
-    },
+    onMutate: () => optimisticLike(postId),
+    onSuccess: (data) => confirmLike(postId, data.likeCount),
     onError: () => {
       rollbackLike(postId);
       setToast(true);
@@ -36,10 +36,18 @@ export function LikeButton({ postId }: LikeButtonProps) {
     },
   });
 
+  const handleClick = () => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    mutate();
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => mutate()}
+        onClick={handleClick}
         className={`flex items-center gap-1.5 transition-all active:scale-90 ${
           liked ? 'text-red-500' : 'text-gray-500 hover:text-red-400'
         }`}

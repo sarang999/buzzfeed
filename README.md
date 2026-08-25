@@ -2,7 +2,7 @@
 
 A high-performance travel social feed. **Mobile** (React Native / Expo Router) and **Web** (Next.js 16 App Router) share typed API contracts, Zustand interaction state, and utilities through three internal packages in a Turborepo + pnpm workspace.
 
-**Stack**: Next.js 16.3 · React 19 · Expo SDK 57 · React Native 0.87 · TanStack Query 5 · Zustand 4 · Reanimated 4 · FlashList 2
+**Stack**: Next.js 16.3 · React 19 · Expo SDK 57 · React Native 0.86.2 · TanStack Query 5 · Zustand 4 · Reanimated 4 · FlashList 2
 
 > **Engineering decisions and trade-offs → [ARCHITECTURE.md](./ARCHITECTURE.md)**
 
@@ -16,6 +16,7 @@ A high-performance travel social feed. **Mobile** (React Native / Expo Router) a
 | pnpm | ≥ 9 |
 | Xcode (iOS) | ≥ 15 (macOS only) |
 | Android Studio | Latest |
+| Ruby (iOS native build) | 3.3.6 via Homebrew (`brew install ruby@3.3`) |
 
 Install pnpm if needed: `npm install -g pnpm`
 
@@ -45,7 +46,7 @@ npx expo start
 ```
 buzzfeed/
 ├── apps/
-│   ├── mobile/          # Expo SDK 57, Expo Router v57, RN 0.87 (iOS + Android)
+│   ├── mobile/          # Expo SDK 57, Expo Router v57, RN 0.86.2 (iOS + Android)
 │   └── web/             # Next.js 16 App Router, React 19
 ├── packages/
 │   ├── api/             # TypeScript types + async mock data layer
@@ -73,7 +74,8 @@ pnpm start      # serve production build
 
 ```bash
 cd apps/mobile
-npx expo start              # Expo Go — core flow (feed, nav, interactions)
+# iOS native build — run from ios/ directory with Homebrew Ruby 3.3.6:
+#   cd ios && /opt/homebrew/opt/ruby@3.3/bin/ruby $(which pod) install && cd ..
 npx expo run:ios            # Full build: FlashList + haptics + blurhash
 npx expo run:android        # Full Android emulator build
 ```

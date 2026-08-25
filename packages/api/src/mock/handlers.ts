@@ -1,5 +1,101 @@
-import type { FeedPage, Post, PostDetail, Comment } from '../types';
+import type { FeedPage, Post, PostDetail, Comment, AuthSession, LoginInput, RegisterInput } from '../types';
 import { MOCK_POSTS, MOCK_COMMENTS } from './data';
+
+// ─── Mock auth store (in-memory, resets on reload — swap for real DB calls) ──
+
+interface MockUser {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  passwordHash: string; // plaintext in mock — never do this in production
+  avatarUrl: string;
+}
+
+const MOCK_USERS: MockUser[] = [
+  {
+    id: 'user_demo',
+    name: 'Demo Traveler',
+    username: 'demo',
+    email: 'demo@buzzfeed.travel',
+    passwordHash: 'password123',
+    avatarUrl: 'https://i.pravatar.cc/150?u=demo',
+  },
+];
+
+/** Generate a mock JWT-shaped token (not a real JWT — swap for jsonwebtoken in production) */
+function mockToken(userId: string, type: 'access' | 'refresh'): string {
+  const payload = btoa(JSON.stringify({ sub: userId, type, iat: Date.now() }));
+  return `mock.${payload}.signature`;
+}
+
+function makeSession(user: MockUser): AuthSession {
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+    },
+    tokens: {
+      accessToken: mockToken(user.id, 'access'),
+      refreshToken: mockToken(user.id, 'refresh'),
+      expiresAt: Date.now() + 15 * 60 * 1000, // 15 min
+    },
+  };
+}
+
+export async function login(input: LoginInput): Promise<AuthSession> {
+  await simulateLatency();
+
+  const user = MOCK_USERS.find(
+    (u) => u.email.toLowerCase() === input.email.toLowerCase() && u.passwordHash === input.password,
+  );
+  if (!user) throw new Error('Invalid email or password.');
+
+  return makeSession(user);
+}
+
+export async function register(input: RegisterInput): Promise<AuthSession> {
+  await simulateLatency();
+
+  if (MOCK_USERS.find((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
+    throw new Error('An account with this email already exists.');
+  }
+  if (MOCK_USERS.find((u) => u.username.toLowerCase() === input.username.toLowerCase())) {
+    throw new Error('This username is already taken.');
+  }
+
+  const newUser: MockUser = {
+    id: `user_${Date.now()}`,
+    name: input.name,
+    username: input.username,
+    email: input.email,
+    passwordHash: input.password,
+    avatarUrl: `https://i.pravatar.cc/150?u=${input.username}`,
+  };
+  MOCK_USERS.push(newUser);
+
+  return makeSession(newUser);
+}
+
+export async function refreshTokens(refreshToken: string): Promise<AuthSession> {
+  await simulateLatency();
+
+  // In production: verify refreshToken signature, look up user from DB
+  try {
+    const parts = refreshToken.split('.');
+    const payload = parts[1];
+    if (!payload) throw new Error('Malformed token');
+    const { sub } = JSON.parse(atob(payload)) as { sub: string };
+    const user = MOCK_USERS.find((u) => u.id === sub);
+    if (!user) throw new Error('User not found');
+    return makeSession(user);
+  } catch {
+    throw new Error('Invalid or expired refresh token. Please log in again.');
+  }
+}
 
 const PAGE_SIZE = 10;
 

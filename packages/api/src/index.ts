@@ -7,6 +7,12 @@ export type {
   FeedPage,
   PostInteraction,
   ApiResult,
+  // Auth
+  AuthUser,
+  AuthTokens,
+  AuthSession,
+  LoginInput,
+  RegisterInput,
 } from './types';
 
 export {
@@ -16,6 +22,10 @@ export {
   likePost,
   savePost,
   getPostsByIds,
+  // Auth
+  login,
+  register,
+  refreshTokens,
 } from './mock/handlers';
 
 export { MOCK_POSTS, MOCK_AUTHORS, MOCK_COMMENTS } from './mock/data';

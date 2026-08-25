@@ -40,18 +40,9 @@ export default function FeedScreen() {
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  // Stable renderItem ref — avoids FlashList remounting cells on parent re-render
   const renderItem = useCallback(({ item }: { item: Post }) => <PostCard post={item} />, []);
 
   const keyExtractor = useCallback((item: Post) => item.id, []);
-
-  // Variable post heights: with image ~380dp, text-only ~200dp
-  const overrideItemLayout = useCallback(
-    (layout: { size: number }, item: Post) => {
-      layout.size = item.imageUrl ? 380 : 200;
-    },
-    [],
-  );
 
   if (status === 'pending') return <SkeletonFeed />;
   if (status === 'error') return <ErrorView message={(error as Error).message} onRetry={() => refetch()} />;
@@ -62,13 +53,11 @@ export default function FeedScreen() {
         <Text style={styles.headerTitle}>✈ BuzzFeed Travel</Text>
       </View>
 
-      <FlashList
-        data={posts}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        estimatedItemSize={320}
-        overrideItemLayout={overrideItemLayout}
-        onEndReached={handleEndReached}
+        <FlashList
+          data={posts}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ItemSeparatorComponent={ItemSeparator}
         ListFooterComponent={

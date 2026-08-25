@@ -27,8 +27,8 @@
 - README, ARCHITECTURE.md, `.github/copilot-instructions.md`, `docs/`
 
 ## High Priority — Next Up
+- [x] **Auth flow** — login/register screens; mobile JWT in `expo-secure-store`; web localStorage (dev) / httpOnly cookie (prod); session persisted across restarts; auth guard in root layout; feed mutations gated behind auth
 - [ ] **Real API swap** — replace bodies in `packages/api/src/mock/handlers.ts` with `fetch()` calls; all types + signatures stay identical
-- [ ] **Auth flow** — login/register screens; mobile JWT in `expo-secure-store`; web httpOnly cookie
 - [ ] **Image upload + create post** — expo-image-picker → S3 → POST to API
 
 ## Medium Priority

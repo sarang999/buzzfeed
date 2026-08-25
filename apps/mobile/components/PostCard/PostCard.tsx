@@ -207,12 +207,19 @@ function PostCardComponent({ post }: PostCardProps) {
   );
 }
 
-// Custom comparator: only re-render when visual data changes
+/**
+ * Custom comparator — re-render only when the data that drives the visual
+ * output actually changes.
+ *
+ * Why not rely on the default shallow-equal?
+ * PostCardComponent reads interaction state directly from Zustand inside the
+ * component, so the `post` prop object itself never changes when the user
+ * likes/saves — only the store subscription triggers a re-render. The memo
+ * comparator therefore only needs to guard against FlashList passing a new
+ * `post` reference with the same content (common during pagination appends).
+ */
 export const PostCard = memo(PostCardComponent, (prev, next) => {
-  return (
-    prev.post.id === next.post.id &&
-    prev.post.likeCount === next.post.likeCount
-  );
+  return prev.post.id === next.post.id;
 });
 
 const styles = StyleSheet.create({
