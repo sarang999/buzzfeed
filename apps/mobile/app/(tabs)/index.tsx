@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, View, Text, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
@@ -14,18 +14,37 @@ import { ErrorView } from '@/components/ErrorView';
 export default function FeedScreen() {
   const hydrate = usePostInteractionStore((s) => s.hydrate);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status, error, refetch, isRefetching } =
-    useInfiniteQuery({
-      queryKey: ['feed'],
-      queryFn: ({ pageParam }) => getPosts(pageParam as string | null),
-      initialPageParam: null as string | null,
-      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    });
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    status,
+    error,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ['feed'],
+    queryFn: ({ pageParam }) => getPosts(pageParam as string | null),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
 
-  const posts = data?.pages.flatMap((page) => page.posts) ?? [];
+  /**
+   * Memoize the flat post array so the reference is stable between renders.
+   * Without useMemo, flatMap runs on every render — including renders triggered
+   * by Zustand interaction updates — allocating a new array each time and
+   * causing FlashList to diff the entire list unnecessarily.
+   */
+  const posts = useMemo(
+    () => data?.pages.flatMap((page) => page.posts) ?? [],
+    [data?.pages],
+  );
 
   useEffect(() => {
     if (posts.length > 0) hydrate(posts);
+    // hydrate is a stable function reference from Zustand — safe to omit from deps.
+    // We re-run only when the page count changes (new page appended).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.pages.length]);
 
@@ -41,11 +60,12 @@ export default function FeedScreen() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const renderItem = useCallback(({ item }: { item: Post }) => <PostCard post={item} />, []);
-
   const keyExtractor = useCallback((item: Post) => item.id, []);
 
   if (status === 'pending') return <SkeletonFeed />;
-  if (status === 'error') return <ErrorView message={(error as Error).message} onRetry={() => refetch()} />;
+  if (status === 'error') {
+    return <ErrorView message={(error as Error).message} onRetry={() => refetch()} />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -53,11 +73,11 @@ export default function FeedScreen() {
         <Text style={styles.headerTitle}>✈ BuzzFeed Travel</Text>
       </View>
 
-        <FlashList
-          data={posts}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          onEndReached={handleEndReached}
+      <FlashList
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ItemSeparatorComponent={ItemSeparator}
         ListFooterComponent={

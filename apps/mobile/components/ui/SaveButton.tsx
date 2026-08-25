@@ -21,7 +21,7 @@ function SaveButtonComponent({ postId }: SaveButtonProps) {
   const interaction = usePostInteractionStore((s) => s.interactions[postId]);
   const optimisticSave = usePostInteractionStore((s) => s.optimisticSave);
   const rollbackSave = usePostInteractionStore((s) => s.rollbackSave);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const saved = interaction?.saved ?? false;
   const scale = useSharedValue(1);

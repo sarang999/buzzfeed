@@ -48,7 +48,7 @@ const queryClient = new QueryClient({
  * persisted session has been rehydrated from SecureStore (`isReady`).
  */
 function AuthGuard({ isReady }: { isReady: boolean }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const segments = useSegments();
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function RootLayout() {
     async (nextState: AppStateStatus) => {
       if (nextState !== 'active') return;
       if (!tokens?.refreshToken) return;
-      if (!isTokenExpired()) return;
+      if (!isTokenExpired) return;
 
       try {
         const session = await refreshTokens(tokens.refreshToken);

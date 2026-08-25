@@ -23,7 +23,7 @@ function LikeButtonComponent({ postId }: LikeButtonProps) {
   const optimisticLike = usePostInteractionStore((s) => s.optimisticLike);
   const rollbackLike = usePostInteractionStore((s) => s.rollbackLike);
   const confirmLike = usePostInteractionStore((s) => s.confirmLike);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const liked = interaction?.liked ?? false;
   const likeCount = interaction?.likeCount ?? 0;

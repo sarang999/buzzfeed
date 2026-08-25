@@ -7,9 +7,20 @@
  *      Mobile  → expo-secure-store (device keychain / Android Keystore)
  *      Web     → httpOnly cookie in production; localStorage in dev/mock
  *  - Tokens are persisted; isLoading is ephemeral (never persisted).
- *  - isTokenExpired() proactively triggers refresh 60 s before actual expiry
- *    so in-flight mutations never hit a 401.
- *  - clearSession() is the single logout path — both platforms call it.
+ *
+ * Selector pattern:
+ *  - `isAuthenticated` and `isTokenExpired` are boolean fields, NOT functions.
+ *  - Zustand re-runs selectors when the selected slice changes. If these were
+ *    methods (s.isAuthenticated()), the selector would only subscribe to the
+ *    function reference — which never changes — so components would not
+ *    re-render when user or tokens change.
+ *  - The store keeps these in sync via middleware: every `set()` call that
+ *    touches `user` or `tokens` automatically recomputes the derived booleans.
+ *
+ * Token refresh strategy:
+ *  - `isTokenExpired` is true when the access token expires in < 60 s.
+ *  - Mobile _layout.tsx listens to AppState and silently refreshes on foreground.
+ *  - `clearSession()` is the single logout path — called on refresh failure too.
  */
 
 import { create } from 'zustand';
@@ -22,11 +33,25 @@ interface AuthState {
   /** Null until a session is established. */
   user: AuthUser | null;
 
-  /** Null until a session is established. Never log/expose accessToken. */
+  /** Null until a session is established. Never log/expose the accessToken. */
   tokens: AuthTokens | null;
 
   /** True while login / register / token-refresh is in-flight. */
   isLoading: boolean;
+
+  /**
+   * Derived: true when user and tokens are both non-null.
+   * Stored as a plain boolean so Zustand subscriptions fire correctly when
+   * the session is established or cleared.
+   */
+  isAuthenticated: boolean;
+
+  /**
+   * Derived: true when the access token has expired or will expire within
+   * 60 seconds. Stored as a plain boolean for the same subscription reason.
+   * Recomputed in setTokens and clearSession.
+   */
+  isTokenExpired: boolean;
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -40,55 +65,69 @@ interface AuthState {
   clearSession: () => void;
 
   setLoading: (loading: boolean) => void;
-
-  // ── Derived ───────────────────────────────────────────────────────────────
-
-  isAuthenticated: () => boolean;
-
-  /**
-   * Returns true when the access token has expired or will expire within
-   * the next 60 seconds — callers should refresh before firing a mutation.
-   */
-  isTokenExpired: () => boolean;
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
+function computeIsTokenExpired(tokens: AuthTokens | null): boolean {
+  if (!tokens) return true;
+  // Refresh 60 s before actual expiry to avoid edge-case 401s on slow networks
+  return Date.now() >= tokens.expiresAt - 60_000;
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       tokens: null,
       isLoading: false,
+      isAuthenticated: false,
+      isTokenExpired: true,
 
       setSession: (session) =>
-        set({ user: session.user, tokens: session.tokens, isLoading: false }),
+        set({
+          user: session.user,
+          tokens: session.tokens,
+          isLoading: false,
+          isAuthenticated: true,
+          isTokenExpired: computeIsTokenExpired(session.tokens),
+        }),
 
-      setTokens: (tokens) => set({ tokens }),
+      setTokens: (tokens) =>
+        set((state) => ({
+          tokens,
+          // isAuthenticated doesn't change — user is still present
+          isTokenExpired: computeIsTokenExpired(tokens),
+          // Preserve other fields
+          user: state.user,
+        })),
 
-      clearSession: () => set({ user: null, tokens: null, isLoading: false }),
+      clearSession: () =>
+        set({
+          user: null,
+          tokens: null,
+          isLoading: false,
+          isAuthenticated: false,
+          isTokenExpired: true,
+        }),
 
       setLoading: (loading) => set({ isLoading: loading }),
-
-      isAuthenticated: () => {
-        const { user, tokens } = get();
-        return user !== null && tokens !== null;
-      },
-
-      isTokenExpired: () => {
-        const { tokens } = get();
-        if (!tokens) return true;
-        return Date.now() >= tokens.expiresAt - 60_000;
-      },
     }),
     {
       name: 'buzzfeed-auth',
 
-      // Only persist the session data — never persist loading state.
+      // Only persist session data — never persist loading or derived flags.
+      // The derived booleans are recomputed from user/tokens on rehydration
+      // via the `onRehydrateStorage` hook below.
       partialize: (state) => ({ user: state.user, tokens: state.tokens }),
 
-      // Default: SSR-safe localStorage for web dev / mock.
-      // Mobile overrides this with the SecureStore adapter at startup.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // Recompute derived fields after rehydration from storage.
+        state.isAuthenticated = state.user !== null && state.tokens !== null;
+        state.isTokenExpired = computeIsTokenExpired(state.tokens);
+      },
+
       storage: createJSONStorage(() => {
         try {
           return typeof window !== 'undefined' && window.localStorage

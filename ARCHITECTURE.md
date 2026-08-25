@@ -106,9 +106,38 @@ Both like and save use the same pattern:
 
 This means the UI *always* responds instantly. If the network request fails (which our mock does 5% of the time), the user sees a brief toast but the UI restores itself — no jarring state flip.
 
----
+## 11. Auth Flow — JWT Storage, Token Lifecycle, and the Zustand Store Design
 
-## What Would Come Next (Production Roadmap)
+**Decision**: Store auth session (user + tokens) in a dedicated Zustand store (`packages/store/src/auth.ts`) with storage injected per platform.
+
+**Why a separate auth store, not the interaction store or React Context?**
+
+The interaction store's `persist` middleware is specifically configured to persist only `saved` bookmarks. Mixing auth tokens into it would either leak token data into a less-secure storage bucket or require maintaining two separate partialize functions in the same store — both are maintenance liabilities.
+
+React Context was considered for web-only auth. Rejected because:
+1. The mobile app needs the same auth state and Context doesn't cross the React Native / Next.js boundary.
+2. Zustand's `persist` middleware handles storage injection cleanly, whereas Context would require a separate `useEffect` + `localStorage` read on every page load.
+
+**Mobile — expo-secure-store + MMKV mirror:**
+
+expo-secure-store uses the device keychain (iOS) and Android Keystore (Android). Tokens are AES-256 encrypted at rest and never touch the filesystem unencrypted.
+
+The core challenge: Zustand's `persist` middleware calls `getItem` synchronously during the first render, but expo-secure-store is async. We solve this with a two-layer approach:
+- MMKV acts as a fast synchronous mirror (RAM + mmap — reads in ~1µs).
+- On cold boot, `hydrateAuthFromSecureStore()` reads SecureStore async, seeds MMKV, then rehydrates Zustand. The root layout awaits this before allowing routing to resolve, so the first render already has the correct auth state.
+- Writes go to MMKV immediately (synchronous path) and to SecureStore asynchronously in the background.
+
+**Token refresh lifecycle:**
+
+Access tokens expire in 15 minutes (configurable). The store exposes `isTokenExpired: boolean` (not a function — Zustand subscriptions only re-render on value changes, not function call results). The root `_layout.tsx` listens to `AppState` and silently refreshes on foreground if the token is within 60 seconds of expiry. On refresh failure, `clearSession()` is called and the user is redirected to the login screen.
+
+**Derived booleans vs methods:**
+
+`isAuthenticated` and `isTokenExpired` are stored as plain boolean fields, not methods. This is a deliberate Zustand pattern: if they were methods (`s.isAuthenticated()`), the selector would subscribe to the function reference — which is stable — and never re-render when `user` changes. Storing them as booleans recomputed on every mutation means the subscription fires correctly.
+
+**Trade-off**: The derived booleans must be kept in sync manually in `setSession`, `setTokens`, and `clearSession`. This is acceptable because these mutations are the only paths that change `user` or `tokens`, and they're all in one file.
+
+---
 
 | Area | Current | Production |
 |------|---------|-----------|

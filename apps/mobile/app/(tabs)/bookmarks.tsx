@@ -40,10 +40,18 @@ export default function BookmarksScreen() {
     [interactions],
   );
 
-  // Re-fetch whenever the saved set changes.
-  // `enabled: false` when no bookmarks avoids an unnecessary network call.
+  /**
+   * Stable query key: join sorted IDs into a single string.
+   *
+   * TanStack Query v5 deep-compares array keys, so ['bookmarks', ['p1','p2']]
+   * would correctly invalidate when the set changes. However, using a string
+   * key is more explicit and avoids any edge cases with object deep-equality.
+   * Sorting ensures the key is order-independent (the saved set has no order).
+   */
+  const savedKey = useMemo(() => [...savedIds].sort().join(','), [savedIds]);
+
   const { data: posts = [], isLoading } = useQuery({
-    queryKey: ['bookmarks', savedIds],
+    queryKey: ['bookmarks', savedKey],
     queryFn: () => getPostsByIds(savedIds),
     enabled: savedIds.length > 0,
     staleTime: 30_000,
