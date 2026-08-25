@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { savePost } from '@buzzfeed/api';
 import { usePostInteractionStore } from '@buzzfeed/store';
+import { useAuth } from '@/app/auth-context';
 
 interface SaveButtonProps {
   postId: string;
@@ -11,6 +13,8 @@ interface SaveButtonProps {
 
 export function SaveButton({ postId }: SaveButtonProps) {
   const [toast, setToast] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
 
   const interaction = usePostInteractionStore((s) => s.interactions[postId]);
   const optimisticSave = usePostInteractionStore((s) => s.optimisticSave);
@@ -20,9 +24,7 @@ export function SaveButton({ postId }: SaveButtonProps) {
 
   const { mutate } = useMutation({
     mutationFn: () => savePost(postId, !saved),
-    onMutate: () => {
-      optimisticSave(postId);
-    },
+    onMutate: () => optimisticSave(postId),
     onError: () => {
       rollbackSave(postId);
       setToast(true);
@@ -30,10 +32,18 @@ export function SaveButton({ postId }: SaveButtonProps) {
     },
   });
 
+  const handleClick = () => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    mutate();
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => mutate()}
+        onClick={handleClick}
         className={`flex items-center gap-1 transition-all active:scale-90 ${
           saved ? 'text-orange-500' : 'text-gray-400 hover:text-orange-400'
         }`}

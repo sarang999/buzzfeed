@@ -2,40 +2,41 @@
 
 A high-performance travel social feed. **Mobile** (React Native / Expo Router) and **Web** (Next.js 16 App Router) share typed API contracts, Zustand interaction state, and utilities through three internal packages in a Turborepo + pnpm workspace.
 
-**Stack**: Next.js 16.3 · React 19 · Expo SDK 57 · React Native 0.87 · TanStack Query 5 · Zustand 4 · Reanimated 4 · FlashList 2
+**Stack**: Next.js 16.3 · React 19 · Expo SDK 57 · React Native 0.86.2 · TanStack Query 5 · Zustand 4 · Reanimated 4.5 · FlashList 2
 
-> **Engineering decisions and trade-offs → [ARCHITECTURE.md](./ARCHITECTURE.md)**
+> **Full engineering decisions and trade-offs → [ARCHITECTURE.md](./ARCHITECTURE.md)**
 
 ---
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Node.js | ≥ 20 |
-| pnpm | ≥ 9 |
-| Xcode (iOS) | ≥ 15 (macOS only) |
-| Android Studio | Latest |
-
-Install pnpm if needed: `npm install -g pnpm`
+| Tool | Version | Install |
+|------|---------|---------|
+| Node.js | ≥ 22 | `brew install node` |
+| pnpm | ≥ 9 | `npm install -g pnpm` |
+| Xcode (iOS) | ≥ 16.4 (macOS only) | App Store |
+| Android Studio | Latest | [developer.android.com](https://developer.android.com/studio) |
+| Ruby (iOS native) | 3.3.6 via Homebrew | `brew install ruby@3.3` |
+| Java (Android) | 17 | `brew install openjdk@17` |
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Install all workspace dependencies from repo root
+# 1. Clone
+git clone <repo-url> && cd buzzfeed
+
+# 2. Install all workspace dependencies
 pnpm install
 
-# 2. Run the web app
-pnpm --filter @buzzfeed/web dev
+# 3. Run the web app
+pnpm web:dev
 # → http://localhost:3000
 
-# 3. Run the mobile app (separate terminal)
-cd apps/mobile
-npx expo start
-# Scan QR with Expo Go (iOS/Android) for JS-only preview
-# OR: npx expo run:ios / npx expo run:android for full native build
+# 4. Run the mobile app (JS-only preview — separate terminal)
+pnpm mobile:start
+# Scan QR with Expo Go (iOS/Android) for the feed, interactions, auth
 ```
 
 ---
@@ -45,12 +46,13 @@ npx expo start
 ```
 buzzfeed/
 ├── apps/
-│   ├── mobile/          # Expo SDK 57, Expo Router v57, RN 0.87 (iOS + Android)
+│   ├── mobile/          # Expo SDK 57, Expo Router, RN 0.86.2 (iOS + Android)
 │   └── web/             # Next.js 16 App Router, React 19
 ├── packages/
 │   ├── api/             # TypeScript types + async mock data layer
-│   ├── store/           # Zustand interaction store (framework-agnostic)
+│   ├── store/           # Zustand interaction + auth store (framework-agnostic)
 │   └── utils/           # formatRelativeTime, formatCount, buildShareUrl
+├── builds/              # Pre-built release artifacts (IPA)
 ├── turbo.json
 ├── pnpm-workspace.yaml
 └── tsconfig.base.json
@@ -58,61 +60,253 @@ buzzfeed/
 
 ---
 
-## Running Individual Apps
+## Running Locally
 
 ### Web
 
 ```bash
-cd apps/web
-pnpm dev        # development server → localhost:3000
-pnpm build      # production build (verifies SSR + static pages)
-pnpm start      # serve production build
+pnpm web:dev        # dev server → localhost:3000
+pnpm web:build      # production build (verifies SSR + static pages)
+pnpm web:start      # serve production build
 ```
 
-### Mobile
+### Mobile — Expo Go (JS-only, fastest)
 
 ```bash
-cd apps/mobile
-npx expo start              # Expo Go — core flow (feed, nav, interactions)
-npx expo run:ios            # Full build: FlashList + haptics + blurhash
-npx expo run:android        # Full Android emulator build
+pnpm mobile:start
+# Scan QR with Expo Go on iOS/Android
+# Full feed, auth, interactions, bookmarks work in Expo Go
 ```
 
-> `FlashList`, `expo-haptics`, and `expo-image` blurhash require a native build (`expo run:*`). Expo Go shows the full feed and interaction flow.
+### Mobile — Full Native Build (required for MMKV, SecureStore, haptics)
+
+#### iOS
+
+```bash
+# Step 1: Install CocoaPods using Homebrew Ruby 3.3 (must NOT use system ruby 2.6)
+pnpm mobile:pod-install
+# OR manually:
+cd apps/mobile/ios
+/opt/homebrew/opt/ruby@3.3/bin/ruby $(which pod) install
+cd ../../..
+
+# Step 2: Run on simulator
+pnpm mobile:ios
+# OR: cd apps/mobile && npx expo run:ios
+```
+
+#### Android
+
+```bash
+# Requires Android emulator running (open Android Studio → Device Manager → start emulator)
+pnpm mobile:android
+# OR: cd apps/mobile && npx expo run:android
+
+# NOTE: See Troubleshooting section below if you hit the Kotlin version error
+```
 
 ---
 
-## Engineering Decisions at a Glance
+## Demo Account
 
-Full rationale in [ARCHITECTURE.md](./ARCHITECTURE.md). Summary table:
+The app ships with a pre-seeded demo account:
 
-| # | Decision | We Chose | Rejected | Why We Chose It | Key Trade-off |
-|---|----------|----------|----------|-----------------|---------------|
-| 1 | **Mobile list rendering** | `FlashList` (Shopify) | `FlatList` (RN built-in) | RecyclerView-style cell recycling — components reused, not remounted. Maintains 60 fps on long feeds | Requires `estimatedItemSize` + `overrideItemLayout` discipline; wrong values cause layout jumps |
-| 2 | **Pagination strategy** | Cursor-based (`lastId`) | Offset (`?page=N`) | Stable under concurrent inserts — no duplicate/missing posts when feed updates while user is scrolling | Can't jump to arbitrary page N; API must be consistently ordered |
-| 3 | **State split** | Zustand (interactions) + TanStack Query (server data) | Redux for everything | Each system owns exactly one concern. Query handles cache/staleness/refetch; Zustand owns user intent and survives navigation | Two systems to learn; developers must understand which store owns what |
-| 4 | **Shared Zustand store** | `packages/store` (zero framework imports) | Per-app store duplication | Bug fix in `optimisticLike` propagates to both mobile and web simultaneously. Same optimistic pattern everywhere | Store persistence backend differs per platform (localStorage web / AsyncStorage mobile) — requires injection |
-| 5 | **API contract location** | `packages/api` shared types + mock handlers | Types duplicated per app | Single TypeScript source of truth — type drift between mobile and web is a build error, not a runtime surprise | Swapping mock → real API requires editing one file; function signatures are identical |
-| 6 | **Mobile navigation** | Expo Router v3 (file-based) | React Navigation configured manually | Same mental model as Next.js App Router — `_layout.tsx`, `[id].tsx`. Deep linking zero-config. Type-safe routes via `typedRoutes: true` | More opinionated about file structure; some advanced RN Navigation patterns require workarounds |
-| 7 | **Web initial data** | Server Component calls `getPosts()` directly | Client-side `useQuery` with spinner | Feed HTML arrives pre-filled — zero loading flash on first paint; crawlable by search engines; React 19 Suspense streams slow data | If server-side mock/API is slow, server response is slow; mitigated with `revalidate` in production |
-| 8 | **Mobile skeleton loader** | Reanimated `withRepeat` + `interpolateColor` (hand-written) | `react-native-skeleton-placeholder` library | Shimmer runs on **UI thread** via Reanimated worklets — stays smooth when JS thread is busy loading first page | ~40 more lines of code vs an npm install |
-| 9 | **Optimistic update rollback** | Zustand `onMutate` → `onError` rollback + toast | Disabled button during request | UI responds in <1 ms. 5% random mock errors ensure rollback path is exercised every dev session | Slightly more complex mutation hook; worth it for the UX |
-| 10 | **Mock API approach** | Direct async function calls with simulated latency | HTTP mock server (json-server / MSW) | Mobile app works without a running server — reviewer runs `npx expo start` standalone | No real HTTP exercised in dev; swap is one file change (`handlers.ts` functions become `fetch()` calls) |
+| Field | Value |
+|-------|-------|
+| Email | `demo@buzzfeed.travel` |
+| Password | `password123` |
+
+Tap **"Use demo account"** on the login screen to auto-fill.  
+You can also register a new account — it persists for the session.
 
 ---
 
-## Running All Dev Servers
+## Build Commands
+
+All build commands are in the root `package.json`:
+
+| Command | What it does |
+|---------|-------------|
+| `pnpm web:build` | Next.js production build |
+| `pnpm mobile:pod-install` | Install iOS CocoaPods with Homebrew Ruby 3.3 |
+| `pnpm mobile:build:ios:release` | Full iOS release archive + IPA (no signing) |
+| `pnpm mobile:build:android:apk` | Release APK via Gradle |
+| `pnpm mobile:build:android:aab` | Release AAB via Gradle |
+
+### Pre-built Release Files
+
+| File | Platform | Location |
+|------|----------|----------|
+| `BuzzFeedTravel.ipa` | iOS | `builds/BuzzFeedTravel.ipa` |
+
+---
+
+## Installing the IPA (iOS)
+
+The IPA in `builds/` is an **unsigned development build** — install it via:
+
+**Option A — Xcode**
+```
+Window → Devices and Simulators → select your device → drag the .ipa onto it
+```
+
+**Option B — Apple Configurator 2** (Mac App Store)
+```
+Drag the .ipa onto your connected device
+```
+
+**Option C — AltStore** (no Apple Developer account needed)
+Install AltStore on your device, then sideload the IPA via AltServer.
+
+> **Note**: An unsigned IPA requires the device's UDID to be registered in an Apple Developer account, OR you can use AltStore / Sideloadly to re-sign it with your personal certificate.
+
+---
+
+## Running All Dev Servers Together
 
 ```bash
-# From repo root — Turborepo orchestrates both in parallel
+# From repo root — Turborepo runs both in parallel
 pnpm dev
 ```
 
 ---
 
+## Troubleshooting
+
+### Android: Kotlin version conflict (`expo-module-gradle-plugin:compileKotlin FAILED`)
+
+**Symptom**:
+```
+e: kotlin-stdlib-2.3.0.jar!/META-INF/kotlin-stdlib.kotlin_module
+   Module was compiled with an incompatible version of Kotlin.
+   The binary version of its metadata is 2.3.0, expected version is 2.1.0.
+```
+
+**Root cause**: `expo-modules-core@57.0.13` uses Kotlin `2.1.20` for its Gradle plugin. `@react-native/gradle-plugin@0.86.2` ships pre-built class files compiled with Kotlin `2.3.0`. The metadata version check fails.
+
+**Fix** (already applied in this repo): A Gradle init script at `~/.gradle/init.d/kotlin-suppress-metadata.gradle` adds `-Xskip-metadata-version-check` to all Kotlin compile tasks. If you're on a fresh machine, create the file:
+
+```bash
+mkdir -p ~/.gradle/init.d
+
+cat > ~/.gradle/init.d/kotlin-suppress-metadata.gradle << 'EOF'
+gradle.allprojects {
+    afterEvaluate { project ->
+        project.tasks.matching { it.class.name.contains("KotlinCompile") }.each { task ->
+            try {
+                def opts = task.kotlinOptions
+                def existing = opts.freeCompilerArgs ?: []
+                if (!existing.contains("-Xskip-metadata-version-check")) {
+                    opts.freeCompilerArgs = existing + ["-Xskip-metadata-version-check"]
+                }
+            } catch (ignored) {}
+        }
+    }
+}
+EOF
+```
+
+Then clean and retry:
+```bash
+cd apps/mobile/android
+./gradlew clean
+npx expo run:android
+```
+
+---
+
+### Android: `babel-preset-expo` not found during Gradle bundle
+
+**Symptom**:
+```
+Failed to construct transformer: Error: Cannot find module 'babel-preset-expo'
+```
+
+**Cause**: Gradle's bundle task runs Metro from the `android/` subdirectory, which is outside the pnpm workspace.
+
+**Fix**: Pre-bundle JS separately, then skip Gradle's bundling:
+```bash
+# From apps/mobile:
+cd apps/mobile
+npx expo export --platform android --output-dir /tmp/android-bundle
+
+# Then build with bundling skipped:
+cd android
+./gradlew assembleRelease -x createBundleReleaseJsAndAssets -x lint -x test
+```
+
+---
+
+### iOS: Pod install fails with "Rosetta2" warning
+
+**Symptom**:
+```
+[!] Do not use "pod install" from inside Rosetta2 (x86_64 emulation on arm64)
+```
+
+**Fix**: Always use Homebrew Ruby 3.3 (ARM native), never the system `/usr/bin/ruby`:
+```bash
+cd apps/mobile/ios
+/opt/homebrew/opt/ruby@3.3/bin/ruby $(which pod) install
+```
+
+Or set it permanently in your shell:
+```bash
+echo 'export PATH="/opt/homebrew/opt/ruby@3.3/bin:$PATH"' >> ~/.zprofile
+source ~/.zprofile
+```
+
+---
+
+### iOS: `expo run:ios` from wrong directory
+
+**Symptom**:
+```
+ConfigError: The expected package.json path: .../ios/package.json does not exist
+```
+
+**Fix**: Always run from `apps/mobile`, never from `apps/mobile/ios`:
+```bash
+# Wrong:
+cd apps/mobile/ios && npx expo run:ios
+
+# Correct:
+cd apps/mobile && npx expo run:ios
+```
+
+---
+
+### Gradle: Clean up stale build artifacts
+
+```bash
+cd apps/mobile/android
+./gradlew clean
+
+# Nuclear option — wipe all Gradle caches:
+rm -rf ~/.gradle/caches/build-cache-*
+rm -rf ~/.gradle/caches/modules-2/
+./gradlew clean
+```
+
+---
+
+### pnpm: Peer dependency warnings on install
+
+The following warnings are **expected and non-blocking**:
+
+```
+✕ unmet peer @react-native/metro-config@0.86.2: found 0.87.0
+✕ Conflicting peer dependencies: react-dom
+```
+
+- `metro-config` mismatch: the `@react-native-community/cli` peer expects `0.87.0` but the app runs `0.86.2`. Metro still works correctly.
+- `react-dom` conflict: framer-motion in the web app and the mobile workspace resolve different versions. Both work.
+
+---
+
 ## Architecture
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for engineering decisions and trade-offs.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for all 13 engineering decisions including: monorepo rationale, state split, Zustand subscription correctness, auth token lifecycle, optimistic update pattern, and the Android Kotlin version conflict.
 
 ---
 
@@ -120,97 +314,68 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for engineering decisions and trade-off
 
 | Feature | Web | Mobile |
 |---------|-----|--------|
-| Travel feed (paginated) | ✅ SSR + client infinite scroll | ✅ FlashList |
+| Travel feed (paginated, SSR) | ✅ | ✅ FlashList |
 | Pull-to-refresh | ✅ | ✅ + haptic feedback |
-| Skeleton loading | ✅ CSS shimmer | ✅ Reanimated shimmer |
-| Like (optimistic) | ✅ | ✅ + spring animation |
+| Skeleton loading | ✅ CSS shimmer | ✅ Reanimated UI-thread shimmer |
+| Like (optimistic + rollback) | ✅ | ✅ + spring animation |
 | Save / Bookmark | ✅ | ✅ + spring animation |
-| State consistency | ✅ Shared Zustand store | ✅ Same store |
-| Post detail | ✅ SSR | ✅ Native screen |
+| State consistency across screens | ✅ | ✅ Shared Zustand store |
+| Post detail (SSR) | ✅ | ✅ Native screen |
 | Comments (async) | ✅ | ✅ |
-| Native share | ✅ Web Share API | ✅ Share.share() |
+| Native share | ✅ Web Share API | ✅ `Share.share()` |
 | Error + retry | ✅ | ✅ |
-| Bookmarks page | ✅ | ✅ |
-| Accessibility | ✅ ARIA labels | ✅ accessibilityRole |
+| Bookmarks page (reactive) | ✅ | ✅ Live Zustand subscription |
+| Offline banner | — | ✅ Reanimated slide-in |
+| Auth (login / register) | ✅ | ✅ |
+| JWT token storage | localStorage (dev) | ✅ expo-secure-store |
+| Profile screen | ✅ Header nav | ✅ Profile tab |
 
 ---
 
-## File Map — Where to Find Things
-
-> Use this to orient quickly without re-reading the whole codebase.
+## File Map
 
 ### Shared Packages
 
 | File | What it does |
 |------|-------------|
-| `packages/api/src/types.ts` | **Every** TypeScript interface: `Post`, `Author`, `Comment`, `FeedPage`, `PostInteraction`. Change the contract here. |
-| `packages/api/src/mock/data.ts` | 50 seeded travel posts. Deterministic — same data on every run. Add or edit posts here. |
-| `packages/api/src/mock/handlers.ts` | `getPosts`, `getPostById`, `likePost`, `savePost`. Swap these bodies for real `fetch()` calls when connecting a backend. |
-| `packages/store/src/post-interaction.ts` | Zustand store. All `optimisticLike`, `rollbackLike`, `optimisticSave`, `rollbackSave` actions live here. |
+| `packages/api/src/types.ts` | Every TypeScript interface: `Post`, `Author`, `Comment`, `FeedPage`, `AuthSession`. Single source of truth. |
+| `packages/api/src/mock/data.ts` | 50 seeded travel posts. Deterministic — same data on every run. |
+| `packages/api/src/mock/handlers.ts` | `getPosts`, `getPostById`, `likePost`, `savePost`, `login`, `register`, `refreshTokens`. Swap these for real `fetch()` calls. |
+| `packages/store/src/post-interaction.ts` | Zustand store: `optimisticLike`, `rollbackLike`, `confirmLike`, `optimisticSave`, `rollbackSave`, `getSavedIds`. |
+| `packages/store/src/auth.ts` | Auth store: `user`, `tokens`, `isAuthenticated`, `isTokenExpired`, `setSession`, `clearSession`. |
 | `packages/utils/src/index.ts` | `formatRelativeTime`, `formatCount`, `buildShareUrl`, `countryCodeToFlag`. Pure functions, no deps. |
 
-### Web App (`apps/web`)
+### Web App
 
-| File | What it does |
-|------|-------------|
-| `app/page.tsx` | Feed page — **Server Component**. Fetches first page, passes as `initialData`. |
-| `app/providers.tsx` | `QueryClientProvider` wrapper (client boundary). |
-| `app/post/[id]/page.tsx` | Post detail — **Server Component** with `notFound()` guard. |
-| `app/bookmarks/page.tsx` | Client-only bookmarks page — reads saved IDs from Zustand. |
-| `components/feed/FeedClient.tsx` | `useInfiniteQuery` + Intersection Observer for infinite scroll. |
-| `components/feed/PostCard.tsx` | Feed card: `next/image`, author, caption, tags, action row. |
-| `components/feed/FeedSkeleton.tsx` | CSS shimmer skeleton. Controls count via `count` prop. |
-| `components/post/PostDetailClient.tsx` | Full detail view with comment list and actions. |
-| `components/ui/LikeButton.tsx` | Optimistic like with TanStack mutation + Zustand + rollback toast. |
-| `components/ui/SaveButton.tsx` | Optimistic save — same pattern as LikeButton. |
-| `components/ui/ShareButton.tsx` | `navigator.share()` with clipboard copy fallback. |
+| File | Role |
+|------|------|
+| `apps/web/app/page.tsx` | Feed — Server Component, zero loading flash |
+| `apps/web/app/login/page.tsx` | Login page |
+| `apps/web/app/register/page.tsx` | Register page |
+| `apps/web/app/bookmarks/page.tsx` | Bookmarks — client, reads Zustand saved IDs |
+| `apps/web/app/auth-context.tsx` | `AuthProvider` + `useAuth` hook |
+| `apps/web/components/ui/HeaderNav.tsx` | Sticky header with auth state |
+| `apps/web/components/feed/FeedClient.tsx` | `useInfiniteQuery` + IntersectionObserver |
 
-### Mobile App (`apps/mobile`)
+### Mobile App
 
-| File | What it does |
-|------|-------------|
-| `app/_layout.tsx` | Root layout — providers: QueryClient, GestureHandler, SafeArea, Toast. |
-| `app/(tabs)/_layout.tsx` | Bottom tab bar config (Feed + Saved tabs). |
-| `app/(tabs)/index.tsx` | Feed screen — FlashList, `overrideItemLayout`, pull-to-refresh, infinite scroll. |
-| `app/(tabs)/bookmarks.tsx` | Bookmarks screen — reads from Zustand, fetches matching posts. |
-| `app/post/[id].tsx` | Post detail — hero image, comments, actions, native Share. |
-| `components/PostCard/PostCard.tsx` | **The main list item.** `React.memo` + `expo-image` + blurhash + action row. |
-| `components/SkeletonFeed.tsx` | Reanimated shimmer skeleton — UI thread, no library. |
-| `components/ErrorView.tsx` | Full-screen error state with retry button. |
-| `components/ui/LikeButton.tsx` | Spring animation (`withSequence`) + haptic + optimistic + rollback. |
-| `components/ui/SaveButton.tsx` | Same pattern, medium haptic weight. |
+| File | Role |
+|------|------|
+| `apps/mobile/app/_layout.tsx` | Root layout — auth guard, token refresh, providers |
+| `apps/mobile/app/(auth)/login.tsx` | Login screen |
+| `apps/mobile/app/(auth)/register.tsx` | Register screen |
+| `apps/mobile/app/(tabs)/index.tsx` | Feed — FlashList, pull-to-refresh |
+| `apps/mobile/app/(tabs)/bookmarks.tsx` | Bookmarks — reactive Zustand + TanStack Query |
+| `apps/mobile/app/(tabs)/profile.tsx` | Profile + sign out |
+| `apps/mobile/app/post/[id].tsx` | Post detail — hero image, comments, actions |
+| `apps/mobile/components/PostCard/PostCard.tsx` | Main list item — single atomic Zustand selector |
+| `apps/mobile/utils/secureAuth.ts` | SecureStore + MMKV two-layer auth storage |
 
 ---
 
-## Task Backlog — What to Build Next
+## Contributing
 
-Ordered by impact. Each item is self-contained and can be picked up independently.
-
-### High Priority
-
-- [ ] **Real API integration** — Replace `packages/api/src/mock/handlers.ts` bodies with `fetch()` calls to a real backend. Types, pagination, and error handling stay identical.
-- [ ] **Auth flow** — Add login/register screens. Mobile: JWT in `expo-secure-store`. Web: httpOnly cookie. Gate feed mutations on auth state.
-- [ ] **Image upload / create post** — `expo-image-picker` → upload to S3/Cloudflare → POST to API.
-
-### Medium Priority
-
-- [ ] **Component tests** — `LikeButton` (web + mobile) with `@testing-library/react` and `@testing-library/react-native`. Mock `useMutation`, assert Zustand state updates.
-- [ ] **Detox E2E** — Critical path: load feed → like a post → navigate to detail → verify like count → navigate back → verify count consistent.
-- [ ] **Web: Virtualized list** — TanStack Virtual for web feed. Not needed until 100+ posts per session but good for parity with mobile.
-
-### Low Priority / Polish
-
-- [ ] **Sentry** — `@sentry/nextjs` (web) + `@sentry/react-native` (mobile). Add to root providers.
-- [ ] **Analytics** — PostHog or Amplitude. Instrument: feed scroll depth, like, save, share, post detail open.
-- [ ] **EAS Build CI** — Add EAS Build step to GitHub Actions for iOS/Android artifact on every release tag.
-
----
-
-## Contributing / Picking Up a Task
-
-1. Read **[ARCHITECTURE.md](./ARCHITECTURE.md)** first — understand the state split before touching any component.
+1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) before touching any component.
 2. Run `pnpm install` from repo root.
-3. Run `pnpm --filter @buzzfeed/web dev` to verify web works.
-4. Pick a task from the backlog above.
-5. Changes to `packages/*` are automatically picked up by both apps (Metro watches `monorepoRoot`; Next.js transpiles via `transpilePackages`).
-6. After any change: `pnpm --filter @buzzfeed/web exec tsc --noEmit` to verify types across all packages.
+3. Run `pnpm --filter @buzzfeed/web exec tsc --noEmit` to verify types across all packages.
+4. Run `pnpm test` to run the 22 store unit tests.

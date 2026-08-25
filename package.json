@@ -8,7 +8,22 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+
+    "web:dev": "pnpm --filter @buzzfeed/web dev",
+    "web:build": "pnpm --filter @buzzfeed/web build",
+    "web:start": "pnpm --filter @buzzfeed/web start",
+
+    "mobile:start": "pnpm --filter @buzzfeed/mobile dev",
+    "mobile:ios": "pnpm --filter @buzzfeed/mobile ios",
+    "mobile:android": "pnpm --filter @buzzfeed/mobile android",
+
+    "mobile:pod-install": "cd apps/mobile/ios && /opt/homebrew/opt/ruby@3.3/bin/ruby $(which pod) install && cd ../..",
+
+    "mobile:build:ios:release": "cd apps/mobile && npx expo export --platform ios --output-dir /tmp/buzzfeed-ios-release && xcodebuild -workspace ios/BuzzFeedTravel.xcworkspace -scheme BuzzFeedTravel -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' archive -archivePath /tmp/BuzzFeedTravel.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' SKIP_BUNDLING=1 COMPILER_INDEX_STORE_ENABLE=NO && mkdir -p /tmp/BuzzFeedTravel-IPA/Payload && cp -r /tmp/BuzzFeedTravel.xcarchive/Products/Applications/BuzzFeedTravel.app /tmp/BuzzFeedTravel-IPA/Payload/ && cd /tmp/BuzzFeedTravel-IPA && zip -r $(git -C $OLDPWD rev-parse --show-toplevel)/builds/BuzzFeedTravel.ipa Payload/",
+
+    "mobile:build:android:aab": "cd apps/mobile/android && ./gradlew bundleRelease -x lint -x test",
+    "mobile:build:android:apk": "cd apps/mobile/android && ./gradlew assembleRelease -x lint -x test"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
@@ -16,7 +31,7 @@
     "typescript": "^5.5.4"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
   },
   "packageManager": "pnpm@10.29.3"

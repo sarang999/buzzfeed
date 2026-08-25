@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,8 +9,9 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useMutation } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { router } from 'expo-router';
 import { likePost } from '@buzzfeed/api';
-import { usePostInteractionStore } from '@buzzfeed/store';
+import { usePostInteractionStore, useAuthStore } from '@buzzfeed/store';
 import { formatCount } from '@buzzfeed/utils';
 
 interface LikeButtonProps {
@@ -22,6 +23,7 @@ function LikeButtonComponent({ postId }: LikeButtonProps) {
   const optimisticLike = usePostInteractionStore((s) => s.optimisticLike);
   const rollbackLike = usePostInteractionStore((s) => s.rollbackLike);
   const confirmLike = usePostInteractionStore((s) => s.confirmLike);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const liked = interaction?.liked ?? false;
   const likeCount = interaction?.likeCount ?? 0;
@@ -31,26 +33,32 @@ function LikeButtonComponent({ postId }: LikeButtonProps) {
 
   const { mutate } = useMutation({
     mutationFn: () => likePost(postId, !liked),
-    onMutate: () => {
-      optimisticLike(postId);
-    },
-    onSuccess: (data) => {
-      confirmLike(postId, data.likeCount);
-    },
+    onMutate: () => optimisticLike(postId),
+    onSuccess: (data) => confirmLike(postId, data.likeCount),
     onError: () => {
       rollbackLike(postId);
-      Toast.show({ type: 'error', text1: 'Failed to update', visibilityTime: 2000 });
+      Toast.show({ type: 'error', text1: 'Failed to update like', visibilityTime: 2000 });
     },
   });
 
   const handlePress = useCallback(() => {
+    if (!isAuthenticated) {
+      Toast.show({
+        type: 'info',
+        text1: 'Sign in to like posts',
+        text2: 'Tap to sign in',
+        onPress: () => router.push('/(auth)/login'),
+        visibilityTime: 3000,
+      });
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     scale.value = withSequence(
       withSpring(1.4, { damping: 4, stiffness: 300 }),
       withSpring(1, { damping: 8 }),
     );
     mutate();
-  }, [liked, scale, mutate]);
+  }, [isAuthenticated, liked, scale, mutate]);
 
   return (
     <TouchableOpacity

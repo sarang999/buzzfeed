@@ -57,3 +57,39 @@ export interface PostInteraction {
 export type ApiResult<T> =
   | { success: true; data: T }
   | { success: false; error: string; statusCode: number };
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  avatarUrl: string;
+}
+
+export interface AuthTokens {
+  /** Short-lived access token (15 min in production) */
+  accessToken: string;
+  /** Long-lived refresh token (30 days in production) */
+  refreshToken: string;
+  /** Unix timestamp (ms) when accessToken expires */
+  expiresAt: number;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  tokens: AuthTokens;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface RegisterInput {
+  name: string;
+  username: string;
+  email: string;
+  password: string;
+}

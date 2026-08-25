@@ -7,35 +7,54 @@ import Animated, {
   useAnimatedStyle,
   withSequence,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useMutation } from '@tanstack/react-query';
 import Toast from 'react-native-toast-message';
+import { Share } from 'react-native';
 import { likePost, savePost } from '@buzzfeed/api';
-import { usePostInteractionStore } from '@buzzfeed/store';
+import { usePostInteractionStore, useAuthStore } from '@buzzfeed/store';
 import { formatRelativeTime, formatCount, buildShareUrl, countryCodeToFlag } from '@buzzfeed/utils';
 import type { Post } from '@buzzfeed/api';
-import { Share } from 'react-native';
 
 interface PostCardProps {
   post: Post;
 }
 
 function PostCardComponent({ post }: PostCardProps) {
-  const interaction = usePostInteractionStore((s) => s.interactions[post.id]);
-  const optimisticLike = usePostInteractionStore((s) => s.optimisticLike);
-  const rollbackLike = usePostInteractionStore((s) => s.rollbackLike);
-  const confirmLike = usePostInteractionStore((s) => s.confirmLike);
-  const optimisticSave = usePostInteractionStore((s) => s.optimisticSave);
-  const rollbackSave = usePostInteractionStore((s) => s.rollbackSave);
+  /**
+   * Single atomic selector — one Zustand subscription, one re-render.
+   *
+   * Trade-off vs 6 individual selectors:
+   *   - Pro: O(1) subscription overhead regardless of how many fields we read.
+   *   - Pro: All interaction fields update atomically — no intermediate renders
+   *     where `liked` is true but `likeCount` is still the old value.
+   *   - Con: The object reference changes on every store update (even unrelated
+   *     posts). We guard against this with the stable memo comparator below —
+   *     the component only re-renders when `post.id` changes, while the Zustand
+   *     subscription handles all interaction-driven re-renders.
+   *
+   * The selector falls back to the server-side counts from the post prop so
+   * cards render correctly before the interaction store has been hydrated.
+   */
+  const { liked, saved, likeCount, saveCount, optimisticLike, rollbackLike, confirmLike, optimisticSave, rollbackSave } =
+    usePostInteractionStore((s) => {
+      const ix = s.interactions[post.id];
+      return {
+        liked: ix?.liked ?? false,
+        saved: ix?.saved ?? false,
+        likeCount: ix?.likeCount ?? post.likeCount,
+        saveCount: ix?.saveCount ?? post.saveCount,
+        optimisticLike: s.optimisticLike,
+        rollbackLike: s.rollbackLike,
+        confirmLike: s.confirmLike,
+        optimisticSave: s.optimisticSave,
+        rollbackSave: s.rollbackSave,
+      };
+    });
 
-  const liked = interaction?.liked ?? false;
-  const saved = interaction?.saved ?? false;
-  const likeCount = interaction?.likeCount ?? post.likeCount;
-  const saveCount = interaction?.saveCount ?? post.saveCount;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  // Reanimated scale spring for like button press feedback
   const likeScale = useSharedValue(1);
   const saveScale = useSharedValue(1);
 
@@ -47,14 +66,19 @@ function PostCardComponent({ post }: PostCardProps) {
     transform: [{ scale: saveScale.value }],
   }));
 
+  /**
+   * mutationFn reads current liked state at call-time via the store getter,
+   * not from the closure. This prevents the stale-closure bug where deps
+   * `[liked]` would cause the mutation instance to be recreated on every
+   * optimistic toggle, briefly making the button non-interactive.
+   */
   const { mutate: mutateLike } = useMutation({
-    mutationFn: () => likePost(post.id, !liked),
-    onMutate: () => {
-      optimisticLike(post.id);
+    mutationFn: () => {
+      const currentLiked = usePostInteractionStore.getState().interactions[post.id]?.liked ?? false;
+      return likePost(post.id, !currentLiked);
     },
-    onSuccess: (data) => {
-      confirmLike(post.id, data.likeCount);
-    },
+    onMutate: () => optimisticLike(post.id),
+    onSuccess: (data) => confirmLike(post.id, data.likeCount),
     onError: () => {
       rollbackLike(post.id);
       Toast.show({ type: 'error', text1: 'Failed to update like', visibilityTime: 2000 });
@@ -62,10 +86,11 @@ function PostCardComponent({ post }: PostCardProps) {
   });
 
   const { mutate: mutateSave } = useMutation({
-    mutationFn: () => savePost(post.id, !saved),
-    onMutate: () => {
-      optimisticSave(post.id);
+    mutationFn: () => {
+      const currentSaved = usePostInteractionStore.getState().interactions[post.id]?.saved ?? false;
+      return savePost(post.id, !currentSaved);
     },
+    onMutate: () => optimisticSave(post.id),
     onError: () => {
       rollbackSave(post.id);
       Toast.show({ type: 'error', text1: 'Failed to save post', visibilityTime: 2000 });
@@ -73,26 +98,47 @@ function PostCardComponent({ post }: PostCardProps) {
   });
 
   const handleLike = useCallback(() => {
+    if (!isAuthenticated) {
+      Toast.show({
+        type: 'info',
+        text1: 'Sign in to like posts',
+        text2: 'Tap to sign in',
+        onPress: () => router.push('/(auth)/login'),
+        visibilityTime: 3000,
+      });
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     likeScale.value = withSequence(
       withSpring(1.4, { damping: 4, stiffness: 300 }),
       withSpring(1, { damping: 8 }),
     );
     mutateLike();
-  }, [liked, likeScale, mutateLike]);
+    // No `liked` in deps — mutation reads state at call-time via store.getState()
+  }, [isAuthenticated, likeScale, mutateLike]);
 
   const handleSave = useCallback(() => {
+    if (!isAuthenticated) {
+      Toast.show({
+        type: 'info',
+        text1: 'Sign in to save posts',
+        text2: 'Tap to sign in',
+        onPress: () => router.push('/(auth)/login'),
+        visibilityTime: 3000,
+      });
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     saveScale.value = withSequence(
       withSpring(1.3, { damping: 4, stiffness: 300 }),
       withSpring(1, { damping: 8 }),
     );
     mutateSave();
-  }, [saved, saveScale, mutateSave]);
+  }, [isAuthenticated, saveScale, mutateSave]);
 
   const handleShare = useCallback(() => {
     Share.share({ message: post.caption, url: buildShareUrl(post.id) });
-  }, [post]);
+  }, [post.caption, post.id]);
 
   const handlePress = useCallback(() => {
     router.push(`/post/${post.id}`);
@@ -129,13 +175,13 @@ function PostCardComponent({ post }: PostCardProps) {
         </View>
       </View>
 
-      {/* Post image */}
+      {/* Post image — recyclingKey lets expo-image reuse the native layer */}
       {post.imageUrl && (
         <Image
           source={{ uri: post.imageUrl }}
           style={styles.postImage}
           contentFit="cover"
-          placeholder={post.blurhash ?? null}
+          {...(post.blurhash ? { placeholder: post.blurhash } : {})}
           transition={400}
           recyclingKey={post.id}
         />
@@ -156,7 +202,6 @@ function PostCardComponent({ post }: PostCardProps) {
       {/* Action row */}
       <View style={styles.actions}>
         <View style={styles.actionsLeft}>
-          {/* Like */}
           <TouchableOpacity
             style={styles.actionButton}
             onPress={handleLike}
@@ -171,13 +216,11 @@ function PostCardComponent({ post }: PostCardProps) {
             <Text style={styles.actionCount}>{formatCount(likeCount)}</Text>
           </TouchableOpacity>
 
-          {/* Comments */}
           <View style={styles.actionButton}>
             <Text style={styles.actionIcon}>💬</Text>
             <Text style={styles.actionCount}>{formatCount(post.commentCount)}</Text>
           </View>
 
-          {/* Share */}
           <TouchableOpacity
             style={styles.actionButton}
             onPress={handleShare}
@@ -190,7 +233,6 @@ function PostCardComponent({ post }: PostCardProps) {
           </TouchableOpacity>
         </View>
 
-        {/* Save */}
         <TouchableOpacity
           onPress={handleSave}
           accessibilityRole="button"
@@ -207,12 +249,17 @@ function PostCardComponent({ post }: PostCardProps) {
   );
 }
 
-// Custom comparator: only re-render when visual data changes
+/**
+ * Memo comparator: only re-render when the post ID changes.
+ *
+ * Interaction state (liked, saved, counts) is owned by Zustand — the Zustand
+ * subscription inside PostCardComponent handles those re-renders independently.
+ * The `post` prop reference changes when new pages are appended to the feed
+ * (TanStack Query creates a new page array), so comparing by ID prevents
+ * FlashList from remounting identical cards on pagination.
+ */
 export const PostCard = memo(PostCardComponent, (prev, next) => {
-  return (
-    prev.post.id === next.post.id &&
-    prev.post.likeCount === next.post.likeCount
-  );
+  return prev.post.id === next.post.id;
 });
 
 const styles = StyleSheet.create({

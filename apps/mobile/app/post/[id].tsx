@@ -58,7 +58,7 @@ export default function PostDetailScreen() {
           <Image
             source={{ uri: post.imageUrl }}
             style={styles.heroImage}
-            placeholder={post.blurhash ?? undefined}
+            {...(post.blurhash ? { placeholder: post.blurhash } : {})}
             contentFit="cover"
             transition={300}
           />

@@ -1,7 +1,8 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { HeaderNav } from '@/components/ui/HeaderNav';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -14,6 +15,10 @@ export const metadata: Metadata = {
     type: 'website',
   },
   manifest: '/manifest.json',
+};
+
+// themeColor moved to viewport export per Next.js 15+ requirement
+export const viewport: Viewport = {
   themeColor: '#f97316',
 };
 
@@ -23,19 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} dark:text-gray-100`}>
         <Providers>
           <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-                <a href="/" className="text-xl font-bold text-orange-500">
-                  ✈ BuzzFeed Travel
-                </a>
-                <a
-                  href="/bookmarks"
-                  className="text-gray-500 dark:text-gray-400 hover:text-orange-500 transition-colors text-sm font-medium"
-                >
-                  Bookmarks
-                </a>
-              </div>
-            </header>
+            <HeaderNav />
             <main className="max-w-2xl mx-auto px-4 py-6">{children}</main>
           </div>
         </Providers>

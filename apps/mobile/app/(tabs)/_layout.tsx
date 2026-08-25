@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, View, Image, StyleSheet } from 'react-native';
+import { useAuthStore } from '@buzzfeed/store';
 
 export default function TabLayout() {
+  const avatarUrl = useAuthStore((s) => s.user?.avatarUrl);
+
   return (
     <Tabs
       screenOptions={{
@@ -47,6 +50,51 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused }) =>
+            avatarUrl ? (
+              <View
+                style={[
+                  styles.avatarWrapper,
+                  focused && styles.avatarWrapperActive,
+                ]}
+              >
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.avatar}
+                  accessibilityLabel="Profile picture"
+                />
+              </View>
+            ) : (
+              <Ionicons
+                name={focused ? 'person-circle' : 'person-circle-outline'}
+                size={26}
+                color={color}
+              />
+            ),
+        }}
+      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  avatarWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  avatarWrapperActive: {
+    borderColor: '#f97316',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+});
