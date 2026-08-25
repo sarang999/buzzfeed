@@ -1,3 +1,8 @@
-# Track IPA/APK release builds
+# Release build artifacts — NOT committed to git (too large, generated locally)
+# Generate using commands in root package.json:
+#   iOS IPA:        pnpm mobile:build:ios:release
+#   Android APK:    pnpm mobile:build:android:apk
+#   Android AAB:    pnpm mobile:build:android:aab
+*.ipa
 *.apk
-# IPA intentionally tracked for sharing
+*.aab
